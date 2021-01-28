@@ -11,7 +11,7 @@
 #include <cstring>
 using namespace std;
 
-//funkcja sprawdzajaca, czy wszytkie JOB-y juz sa zakonczone:
+//function which checks if all JOBs are finished
 bool check_all_done(vector<int> time_left_whole_job, int num_jobs){
     for(int i=0; i<num_jobs; i++){
         if(time_left_whole_job[i] > 0){
@@ -22,40 +22,38 @@ bool check_all_done(vector<int> time_left_whole_job, int num_jobs){
 
 }
 
-//struktura (ktora maszyna i jaki czas) co w swojej kolejce ma teraz zrobic dany JOB
-//podstawowa struktura do przechowywania informacji o maszynach w kolejce dla danego JOB-a
+//struct for storing the machine id and time
 struct do_what{
     int machine;
     int time;
 };
 
-//struktura aktualnego stanu danego JOB-a
+//struct for current state of a JOB
 struct state{
     int executes;
-    //executes==-1 -JOB WOLNY
-    //executes==0 -JOB WYKONUJE MASZYNE 0 itd.
+    //executes==-1 -> free JOB
+    //executes==N  -> JOB is being done on machine N
     int time_left_current_machine;
-    //ma tylko sens, gdy executes!=0
+    //only meaningful when executes>=0
 };
 
+//Beasley version
 void Beasley(int argc, char *argv[]){
     ifstream fin(argv[1]);
 
     int num_jobs, num_machines;
-    //zmienne pomocnicze:
+    //tmp variables
     int tmp_machine;
     int tmp_time;
     int tmp_job;
-    int liczba_uwzgl_JOBow;
-    //argument nr 4 wywolania programu
-    //ile JOBow od gory uwzglednic w obliczeniach
+    int liczba_uwzgl_JOBow; //4th argv argument
 
     fin >> num_jobs >> num_machines;
 
-    //pomocniczy wektor co jest aktualnie wykonywane na danej maszynie:
+    //auxiliary vector for noting what is currently done on a machine
     vector<int> job_done_by_machine(num_machines);
     fill(job_done_by_machine.begin(), job_done_by_machine.end(), -1);
-    //jesli job_done_by_machine[j]==-1, to nic sie teraz tam nie wykonuje na maszynie j
+    //when job_done_by_machine[j]==-1, then nothing is now done on machine j
 
     if(argc==5){
         string str(argv[4]);
@@ -64,18 +62,17 @@ void Beasley(int argc, char *argv[]){
             num_jobs=liczba_uwzgl_JOBow;
     }
 
-    //wektor kolejek z parami maszyna-czas
+    //vector of queues with pairs machine-time
     vector<queue<do_what> > job(num_jobs);
 
-    //dla kazdego JOBa caly czas pozostaly do ostatecznego konca
+    //remaining completion time for every JOB
     vector<int> time_left_whole_job(num_jobs);
     fill(time_left_whole_job.begin(), time_left_whole_job.end(), 0);
 
-    //pomocnieczo - wektor aktualnych stanowow danego JOB-a
+    //auxiliary vector of current JOB states
     vector<state> state_job(num_jobs);
 
-
-    //wczytywanie danych
+    //loading data from input file
     int i,j;
     do_what element;
     for(i=0; i<num_jobs; i++){
@@ -87,59 +84,60 @@ void Beasley(int argc, char *argv[]){
             job[i].push(element);
         }
     }
-    //zmienne do rozwiazania - czasy wykonywania poszczegolnych zadan
+    //current in-program time
     int global_time;
-    //oraz wektor kolejek FIFO z czasami wykonywania kolejnych maszyn dla danego JOB-a
+    //vector of FIFO queues with times of machine times for a JOB
     vector<queue<int> > solution(num_jobs);
 
-    //pomocniczy wektor numeru najlepszego (najwieszky czas do konca) chetnego JOB-a na dana maszyne
+    //auxiliary vector of the id of the closest (the greates time till end) willing JOB for a machine
     vector<int> job_wants_machine(num_machines);
-    //jesli job_wants_machine[i]==-1, to w danym momencie zaden JOB nie chce maszyn
+    //when job_wants_machine[i]==-1, then currently no JOB wants a machine
 
-    //zmienna jump_time - o ile przeskoczymy czasu, ze bedzie potrzebna kolejna decyzja
-    //tzn minimalny czas pozostaly z wykonywania wszystkich aktualnych JOB-ow na aktuyalnych maszynach
-    //wykorzystane w punktach 2 i 3 ponizszej pentli while
+    //jump_time variable - how much time we can currently jump forwards (when next decision is needed)
+    //i.e. minimal time remaining for completing a JOB on any machine
+    //very important for the main WHILE loop
     int jump_time;
 
-    //ALGORYTM ZACHLANNY (GREEDY)
-    //Zawsze gdy moze dobrac JOB-a do wykoniania na danej maszynie
-    //to wybiera tego, ktory ma najwiekszy czas time_left_whole_job
-    //czyli swoj czas do wykonania wszystkich pozostalych maszyn
+    //GREEDY ALGORITHM
+    //Every time when some JOB can be chosen for a machine
+    //then a JOB with the greatest time_left_whole_job is chosen
     global_time=0;
     while(!check_all_done(time_left_whole_job, num_jobs)){
-        //w kazdej chwili czasu wykonuje nastepujace czynnosci:
-        //1. zaczynam od zalozenia, ze obecnie zaden JOB nie chce zadnej maszyny
+        //in every time point the following 3 things happen:
+        
+        //1. Computing the job_wants_machine vector
+        //We start with an assumption that currently no JOB wants a machine now.
         fill(job_wants_machine.begin(), job_wants_machine.end(), -1);
-        //sprawdzam jakie JOBy chca jakie maszyny, jesli nic nie wykonuja teraz
+        //check what JOBs want what machines with they do nothing now
         for(i=0; i<num_jobs; i++){
             if(state_job[i].executes==-1 && job[i].size()>0){
                 tmp_machine=job[i].front().machine;
                 tmp_time=job[i].front().time;
-                //mechanizm pominiecia maszyny, ktora ma miec czas wykonywania 0 (czyli nie byc wcale wykonywana dla danego JOB-a):
+                //omitting a maching which has a 0 exec time (will not be used at all for a JOB)
                 while(tmp_time==0 && job[i].size()>0){
                     solution[i].push(global_time);
                     job[i].pop();
                     tmp_machine=job[i].front().machine;
                     tmp_time=job[i].front().time;
                 }
-                //ponowne sprawdzenie, czy cokolwiek jest w kolejce po pozbyciu sie nieuzywanych maszyn dla danego JOB-a
+                //checking again if sth is in the queue after getting rid of unused machines for a JOB
                 if(job[i].size()>0){
-                    //normalne sprawdzanie dla normalnie zadanej maszyny dla JOB-a
-                    //jesli ta maszyna obecnie jest zajeta, to mamy gdzies, ze JOB ja chce i idziemy dalej:
+                    //regular checking for a regular maching for a JOB
+                    //if a machine is busy now, then we ignore it
                     if(job_done_by_machine[tmp_machine]!=-1)
                         continue;
-                    else if(job_wants_machine[tmp_machine]==-1)   //jesli zaden JOB nie chce teraz tej maszyny, to od razu ten JOB jest wpisany jako chetny
+                    else if(job_wants_machine[tmp_machine]==-1)   //if no JOB wants this machine now, then this JOB is immidiately submitted
                         job_wants_machine[tmp_machine]=i;
-                    //jesli juz jakis chce, to sprawdzamy, ktory JOB ma dluzej do wykonania calosci
-                    //KLUCZOWY element algorytmu:
+                    //if there is an other willing JOB for this machine, then we check which JOB has a longer time to complete
+                    //THE GREEDY CHOICE:
                     else if(time_left_whole_job[job_wants_machine[tmp_machine]] < time_left_whole_job[i])
                         job_wants_machine[tmp_machine]=i;
                 }
             }
         }
-        //teraz mamy juz uzupelniony wektor job_wants_machine tak, by wiedziec co pojdzie do danej maszyny teraz
+        //now we have completed the job_wants_machine vector - we know which JOB goes to which machine now
 
-        //2. Zaczynamy wykonywanie maszyn przez JOBY zgodnie z powyzszym wektorem
+        //2. We start JOB execution on machines according to the job_wants_machine vector
         for(i=0; i<num_machines; i++){
             tmp_job=job_wants_machine[i];
             if(tmp_job!=-1){
@@ -150,23 +148,22 @@ void Beasley(int argc, char *argv[]){
             }
         }
 
-        //2.5 dopasowanie czasu jump_time do nastepnego zakonczenia jakiegos wykonywania
+        //2.5 Computing the jump_time
         jump_time=-1;
         for(i=0; i<num_jobs; i++){
             tmp_time = state_job[i].time_left_current_machine;
             if(state_job[i].executes!=-1 && tmp_time>0){
-            //jesli jump_time jest nadal w wartosci bazowej -1, to zawsze zastepujemy pierwszym lepszym
                 if(jump_time == -1){
                     jump_time = tmp_time;
                 }
-                //jesli juz jump_time != -1, to przypisujemy mu najmniejszy z dostepnych
+                //the smallest possible
                 else if(tmp_time < jump_time){
                     jump_time = tmp_time;
                 }
             }
         }
 
-        //3. Przejscie do kolejnej chwili czasu:
+        //3. Jumping to the next time point
         global_time+=jump_time;
         for(i=0; i<num_jobs; i++){
             if(state_job[i].executes != -1){
@@ -182,7 +179,7 @@ void Beasley(int argc, char *argv[]){
         }
     }
 
-    //wypisanie rozwiazania do pliku:
+    //Writing the solution to txt file
     ofstream fout(argv[2]);
     fout << global_time << "\n";
     for(i=0; i<num_jobs; i++){
@@ -199,51 +196,43 @@ void Beasley(int argc, char *argv[]){
 }
 
 void Taillard(int argc, char *argv[]){
-    //jedyne roznice miedzy Taillard() i Beasley() to:
-    //-format wejscia
-    //-zmiany dotyczace numeracji maszyn od 1 (petle, wielkosci wektorow itp)
+    //The only differences between Taillard() and Beasley() are
+    //-input format
+    //-numbering machines from 1 instead of 0
+    //this could have been done in one function with a B/T parameter but it's too late now :)
     ifstream fin(argv[1]);
 
     int num_jobs, num_machines;
     int i,j;
-    //zmienne pomocnicze:
     int tmp_machine;
     int tmp_time;
     int tmp_job;
-    string tmp; //do wczytywania smieci z naglowka formatu Taillarda
+    string tmp; //for reading useless junk from Taillard header
     int liczba_uwzgl_JOBow;
-    //argument nr 4 wywolania programu
-    //ile JOBow od gory uwzglednic w obliczeniach
 
-    //wczytanie liczby zadan i maszyn
+    //reading the num of jobs and machines
     fin >> num_jobs >> num_machines;
 
-    //pomocniczy wektor co jest aktualnie wykonywane na danej maszynie:
     vector<int> job_done_by_machine(num_machines+1);
     fill(job_done_by_machine.begin(), job_done_by_machine.end(), -1);
-    //jesli job_done_by_machine[j]==-1, to nic sie teraz tam nie wykonuje na maszynie j
 
-    //wektor kolejek z parami maszyna-czas
     vector<queue<do_what> > job(num_jobs);
 
-    //dla kazdego JOBa caly czas pozostaly do ostatecznego konca
     vector<int> time_left_whole_job(num_jobs);
     fill(time_left_whole_job.begin(), time_left_whole_job.end(), 0);
 
-    //pomocniczo - wektor aktualnych stanowow danego JOB-a
     vector<state> state_job(num_jobs);
 
-
-    vector< vector<int> > tmp_times_table(num_jobs); //tabelka do tymczasowego przechowania tabeli Times
+    vector< vector<int> > tmp_times_table(num_jobs);
     for(i=0; i<num_jobs; i++){
         tmp_times_table[i].resize(num_machines+1);
     }
-    //wczytywanie danych
-    fin >> tmp >> tmp >> tmp >> tmp; //4 niepotrzebne liczby z naglowka
-    //tabela Times
+    //loading data
+    fin >> tmp >> tmp >> tmp >> tmp; //4 useless numbers from header
+
     fin >> tmp; //"Times"
     for(i=0; i<num_jobs; i++){
-        for(j=1; j<=num_machines; j++){ //zmieniona petla dla Taillarda
+        for(j=1; j<=num_machines; j++){ //special Taillard reading loop
             fin >> tmp_time;
             tmp_times_table[i][j]=tmp_time;
             time_left_whole_job[i]+=tmp_time;
@@ -251,11 +240,11 @@ void Taillard(int argc, char *argv[]){
             state_job[i].time_left_current_machine=0;
         }
     }
-    //tabela Machines i wrzucenie danych do kolejek
+
     fin >> tmp; //"Machines"
-    do_what element; //pomocniczy do wczytywania do kolejek
+    do_what element;
     for(i=0; i<num_jobs; i++){
-        for(j=1; j<=num_machines; j++){ //zmieniona petla dla Taillarda
+        for(j=1; j<=num_machines; j++){ //special Taillard reading loop
             fin >> element.machine;
             element.time=tmp_times_table[i][j];
             job[i].push(element);
@@ -268,61 +257,50 @@ void Taillard(int argc, char *argv[]){
         if((liczba_uwzgl_JOBow < num_jobs) && (liczba_uwzgl_JOBow > 0))
             num_jobs=liczba_uwzgl_JOBow;
     }
-    //koniec wczytywania danych
+    //the end of reading Taillard data
 
-    //zmienne do rozwiazania - czasy wykonywania poszczegolnych zadan
+    //no comments from now on - everthing is the same as in Beasley
     int global_time;
-    //oraz wektor kolejek FIFO z czasami wykonywania kolejnych maszyn dla danego JOB-a
+
     vector<queue<int> > solution(num_jobs);
 
-    //pomocniczy wektor numeru najlepszego (najwieszky czas do konca) chetnego JOB-a na dana maszyne
     vector<int> job_wants_machine(num_machines+1);
-    //jesli job_wants_machine[i]==-1, to w danym momencie zaden JOB nie chce maszyn
 
-    //zmienna jump_time - o ile przeskoczymy czasu, ze bedzie potrzebna kolejna decyzja
-    //tzn minimalny czas pozostaly z wykonywania wszystkich aktualnych JOB-ow na aktuyalnych maszynach
-    //wykorzystane w punktach 2 i 3 ponizszej pentli while
     int jump_time;
 
-    //ALGORYTM ZACHLANNY (GREEDY)
-    //Zawsze gdy moze dobrac JOB-a do wykoniania na danej maszynie
-    //to wybiera tego, ktory ma najwiekszy czas time_left_whole_job
-    //czyli swoj czas do wykonania wszystkich pozostalych maszyn
+    //GREEDY ALGORITHM
     global_time=0;
     while(!check_all_done(time_left_whole_job, num_jobs)){
-        //w kazdej chwili czasu wykonuje nastepujace czynnosci:
-        //1. zaczynam od zalozenia, ze obecnie zaden JOB nie chce zadnej maszyny
+        //1.
         fill(job_wants_machine.begin(), job_wants_machine.end(), -1);
-        //sprawdzam jakie JOBy chca jakie maszyny, jesli nic nie wykonuja teraz
+
         for(i=0; i<num_jobs; i++){
             if(state_job[i].executes==-1 && job[i].size()>0){
                 tmp_machine=job[i].front().machine;
                 tmp_time=job[i].front().time;
-                //mechanizm pominiecia maszyny, ktora ma miec czas wykonywania 0 (czyli nie byc wcale wykonywana dla danego JOB-a):
+
                 while(tmp_time==0 && job[i].size()>0){
                     solution[i].push(global_time);
                     job[i].pop();
                     tmp_machine=job[i].front().machine;
                     tmp_time=job[i].front().time;
                 }
-                //ponowne sprawdzenie, czy cokolwiek jest w kolejce po pozbyciu sie nieuzywanych maszyn dla danego JOB-a
+
                 if(job[i].size()>0){
-                    //normalne sprawdzanie dla normalnie zadanej maszyny dla JOB-a
-                    //jesli ta maszyna obecnie jest zajeta, to mamy gdzies, ze JOB ja chce i idziemy dalej:
+
                     if(job_done_by_machine[tmp_machine]!=-1)
                         continue;
-                    else if(job_wants_machine[tmp_machine]==-1)   //jesli zaden JOB nie chce teraz tej maszyny, to od razu ten JOB jest wpisany jako chetny
+                    else if(job_wants_machine[tmp_machine]==-1)
                         job_wants_machine[tmp_machine]=i;
-                    //jesli juz jakis chce, to sprawdzamy, ktory JOB ma dluzej do wykonania calosci
-                    //KLUCZOWY element algorytmu:
+
+                    //THE GREEDY CHOICE
                     else if(time_left_whole_job[job_wants_machine[tmp_machine]] < time_left_whole_job[i])
                         job_wants_machine[tmp_machine]=i;
                 }
             }
         }
-        //teraz mamy juz uzupelniony wektor job_wants_machine tak, by wiedziec co pojdzie do danej maszyny teraz
 
-        //2. Zaczynamy wykonywanie maszyn przez JOBY zgodnie z powyzszym wektorem
+        //2.
         for(i=1; i<=num_machines; i++){
             tmp_job=job_wants_machine[i];
             if(tmp_job!=-1){
@@ -333,7 +311,7 @@ void Taillard(int argc, char *argv[]){
             }
         }
 
-        //2.5 dopasowanie czasu jump_time do nastepnego zakonczenia jakiegos wykonywania
+        //2.5
         jump_time=-1;
         for(i=0; i<num_jobs; i++){
             tmp_time = state_job[i].time_left_current_machine;
@@ -349,7 +327,7 @@ void Taillard(int argc, char *argv[]){
             }
         }
 
-        //3. Przejscie do kolejnej chwili czasu:
+        //3.
         global_time+=jump_time;
         for(i=0; i<num_jobs; i++){
             if(state_job[i].executes != -1){
@@ -365,11 +343,11 @@ void Taillard(int argc, char *argv[]){
         }
     }
 
-    //wypisanie rozwiazania do pliku:
+    //writing the results
     ofstream fout(argv[2]);
     fout << global_time << "\n";
     for(i=0; i<num_jobs; i++){
-        for(j=1; j<=num_machines; j++){ //zmieniona petla dla Taillarda
+        for(j=1; j<=num_machines; j++){ //special Taillard loop
             fout << solution[i].front() << " ";
             solution[i].pop();
         }
@@ -384,24 +362,24 @@ void Taillard(int argc, char *argv[]){
 
 
 int main(int argc, char *argv[]){
-//argumenty z linii polecen:
-//argv[1] - plik z danymi w formacie Beasleya lub Taillarda
-//argv[2] - plik do zapisu wyniku
-//argv[3] - format danych wejsciowych: B lub T
-//argv[4] - OPCJONALNY, liczba pierwszych uwzglednionych JOBow z danych, gdy nie jest podany, to uwzglednia wszystkie
+//argv values from the console 
+//argv[1] - input file in [B]easley or [T]aillard format
+//argv[2] - output file
+//argv[3] - input data format: B or T
+//argv[4] - OPTIONAL, the number of first N tasks from input file which will be used, when void then all are used
 
     if(argc<4 || (!strcmp(argv[3],"T") && !strcmp(argv[3],"B"))){
-        cout << "Blad. Sprobuj: " << argv[0] << " [input_file.txt] [output_file.txt] [format_(B)easley/(T)aillard] [OPCJONALNE_liczba_uwzgl_pierwszych_JOBow]\n";
+        cout << "Error. Try: " << argv[0] << " [input_file.txt] [output_file.txt] [format_(B)easley/(T)aillard] [OPTIONAL_num_of_first_N_tasks]\n";
     }
     else{
-        auto start = std::chrono::system_clock::now(); //pomiar czasu - start
+        auto start = std::chrono::system_clock::now(); //time measurement - start
         if(!strcmp(argv[3],"B")){
-            Beasley(argc, argv);	//wariant formatu Beasleya
+            Beasley(argc, argv);	//Beasley variant
         }
         else{
-            Taillard(argc, argv);	//wariant formatu Taillarda
+            Taillard(argc, argv);	//Taillard variant
         }
-        auto end = std::chrono::system_clock::now(); // pomiar czasu - koniec
+        auto end = std::chrono::system_clock::now(); // time measurement - end
         cout << "Execution time: " << ((double)(end-start).count())/10e8 << "\n";
     }
 
