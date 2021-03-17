@@ -6,7 +6,10 @@ A greedy algorithm in C++ which solves the JobShop problem.
 - [T]aillard format (http://mistic.heig-vd.ch/taillard/problemes.dir/ordonnancement.dir/ordonnancement.html)
 
 ### Compilation
-> g++ JobShop . cpp −o JobShop
+> g++ JobShop.cpp −o JobShop
 
 ### Running
 > ./JobShop input.txt output.txt [B/T] [num_of_first_N_tasks_from_input.txt_which_will_be_used]
+
+#### Example
+> ./JobShop tai100.txt tai100_result.txt T 50
